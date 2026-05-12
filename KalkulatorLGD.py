@@ -462,36 +462,67 @@ with tab1:
         </p>
         </div>""", unsafe_allow_html=True)
 
-    if breakeven_p1 > 1:
+    # ── Breakeven range ──
+    # Batas atas: p₂ = 0 (tidak ada cushion, paling konservatif)
+    bep_upper = calculate_values(ead, full_claim, recovery_now, p1, 0.0,
+                                 t, r, collection_cost, cost_timing)["breakeven_p1"]
+    # Batas bawah: p₂ = 1−p₁ (tidak ada yang tidak bayar sama sekali, paling optimis)
+    # Diselesaikan analitik: p₁_bep*(full_claim − recovery_now) = recovery_now*(df−1) + C*(1 atau df)
+    if full_claim > recovery_now:
+        if cost_timing == "Akhir periode recovery":
+            bep_lower = (recovery_now * (df_factor - 1) + collection_cost) / (full_claim - recovery_now)
+        else:
+            bep_lower = (recovery_now * (df_factor - 1) + collection_cost * df_factor) / (full_claim - recovery_now)
+    else:
+        bep_lower = bep_upper
+    bep_lower = max(bep_lower, 0.0)
+
+    bep_lo_pct = bep_lower * 100
+    bep_hi_pct = bep_upper * 100
+    p1_pct     = p1 * 100
+
+    if bep_hi_pct > 100:
         st.markdown(f"""
         <div class="card card-red">
-        <span class="badge badge-red">Breakeven p₁ tidak tercapai</span>
+        <span class="badge badge-red">Breakeven tidak tercapai di semua skenario p₂</span>
         <p style="margin:0">
-        p₁ minimum agar Opsi A unggul = <strong>{breakeven_p1*100:.1f}%</strong> — melebihi 100%.
-        Bahkan jika debitur pasti bayar penuh pun, Opsi A tetap kalah dari Opsi B pada kombinasi
-        t, r, dan p₂ ini.
+        Bahkan dengan asumsi p₂ paling optimis (p₂ = 1−p₁), p₁ minimum yang dibutuhkan
+        = <strong>{bep_lo_pct:.1f}%</strong>. Pada kondisi p₂ = 0%, bisa mencapai
+        <strong>{bep_hi_pct:.1f}%</strong>. Opsi A tidak bisa unggul pada kombinasi t dan r saat ini.
         </p>
         </div>""", unsafe_allow_html=True)
-    elif breakeven_p1 <= 0:
+    elif p1_pct >= bep_hi_pct:
         st.markdown(f"""
         <div class="card card-green">
-        <span class="badge badge-green">Opsi A dominan</span>
+        <span class="badge badge-green">Opsi A layak di semua skenario p₂</span>
         <p style="margin:0">
-        Breakeven p₁ = {breakeven_p1*100:.1f}% — Opsi A sudah unggul bahkan tanpa kontribusi
-        skenario p₁ sama sekali. Periksa apakah parameter sudah realistis.
+        p₁ aktual <strong>{p1_pct:.1f}%</strong> melampaui breakeven bahkan pada kondisi
+        paling konservatif (p₂ = 0%): breakeven = <strong>{bep_hi_pct:.1f}%</strong>.
+        Opsi A unggul tanpa peduli seberapa besar p₂.
+        </p>
+        </div>""", unsafe_allow_html=True)
+    elif p1_pct >= bep_lo_pct:
+        st.markdown(f"""
+        <div class="card card-amber">
+        <span class="badge badge-amber">Breakeven p₁: {bep_lo_pct:.1f}% – {bep_hi_pct:.1f}%</span>
+        <p style="margin:0">
+        p₁ aktual <strong>{p1_pct:.1f}%</strong> berada di dalam range breakeven.<br>
+        • Kalau p₂ besar (debitur kemungkinan bayar pokok meski terlambat)
+        → breakeven serendah <strong>{bep_lo_pct:.1f}%</strong>
+        → <span style="color:#065f46;font-weight:600">Opsi A layak</span><br>
+        • Kalau p₂ kecil atau nol
+        → breakeven bisa sampai <strong>{bep_hi_pct:.1f}%</strong>
+        → <span style="color:#92400e;font-weight:600">Opsi A berisiko</span><br>
+        Keputusan bergantung pada keyakinan seberapa besar p₂.
         </p>
         </div>""", unsafe_allow_html=True)
     else:
-        color   = "green" if p1 >= breakeven_p1 else "amber"
-        verdict = ("p₁ aktual sudah melampaui breakeven — Opsi A layak."
-                   if p1 >= breakeven_p1 else
-                   "p₁ aktual belum mencapai breakeven — Opsi B lebih rasional.")
         st.markdown(f"""
-        <div class="card card-{color}">
-        <span class="badge badge-{color}">Breakeven p₁ = {breakeven_p1*100:.1f}%</span>
+        <div class="card card-red">
+        <span class="badge badge-red">Breakeven p₁: {bep_lo_pct:.1f}% – {bep_hi_pct:.1f}%</span>
         <p style="margin:0">
-        p₁ minimum agar Opsi A unggul (pada p₂ = {p2:.0%}): <strong>{breakeven_p1*100:.1f}%</strong>.
-        p₁ aktual: <strong>{p1*100:.1f}%</strong>. {verdict}
+        p₁ aktual <strong>{p1_pct:.1f}%</strong> belum mencapai breakeven di semua skenario p₂.
+        Opsi B lebih rasional pada kombinasi t dan r saat ini.
         </p>
         </div>""", unsafe_allow_html=True)
 
@@ -746,13 +777,9 @@ with tab3:
 
     st.markdown("### F. LGD")
     st.latex(
-        rf"""
-        LGD_A = 1 - \frac{{{pv_a:,.2f}}}{{{ead:,.2f}}}
-        = {lgd_a_raw*100:.2f}\%
-        \quad
-        LGD_B = 1 - \frac{{{pv_b:,.2f}}}{{{ead:,.2f}}}
-        = {lgd_b_raw*100:.2f}\%
-        """
+        rf"LGD_A = 1 - \frac{{{pv_a:,.2f}}}{{{ead:,.2f}}} = {lgd_a_raw*100:.2f}\%"
+        r"\qquad"
+        rf"LGD_B = 1 - \frac{{{pv_b:,.2f}}}{{{ead:,.2f}}} = {lgd_b_raw*100:.2f}\%"
     )
 
     st.markdown("### G. Biaya Tersembunyi Skenario p₂")
@@ -793,21 +820,19 @@ with tab4:
         r_label    = f"r = {r:.0%}/thn"
 
     # Tabel A: p1 vs t
-    st.subheader(f"A. p₁ vs Waktu Tunggu  (p₂ = 1−p₁ per baris, p_nothing = 0%, {r_label})")
+    st.subheader(f"A. p₁ vs Waktu Tunggu  (p₂ = {p2:.0%} tetap, {r_label})")
     st.markdown("""
     <div class="card card-blue"><p style="margin:0">
     Angka dalam kurung = selisih PV (A − B). Positif = A lebih baik. <strong>★ = parameter aktif.</strong>
     </p></div>
     """, unsafe_allow_html=True)
 
-    p1_vals = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]
+    p1_vals = [0.10, 0.20, 0.30, 0.40, 0.50, 0.65, 0.80, 0.90, 1.0]
     rows_a = []
     for p1_i in p1_vals:
         row = []
         for t_i in t_vals:
-            # GANTI JADI:
-            p2_a = round(1.0 - p1_i, 10)   # p2 = 1-p1, p_nothing = 0
-            ri = calculate_values(ead, full_claim, recovery_now, p1_i, p2_a, float(t_i), r, collection_cost, cost_timing)
+            ri = calculate_values(ead, full_claim, recovery_now, p1_i, p2, float(t_i), r, collection_cost, cost_timing)
             d  = ri["diff"]
             mk = " ★" if abs(p1_i - p1) < 0.06 and abs(float(t_i) - t) < (1.5 if time_unit == "Bulan" else 0.3) else ""
             if d > 0.1:    row.append(f"A (+{d:,.2f}){mk}")
@@ -829,7 +854,7 @@ with tab4:
         r_idx      = [f"r = {x:.0%}/thn" for x in r_vals]
         r_tol      = 0.015
 
-    st.subheader(f"B. Discount Rate vs Waktu Tunggu  (p₁ = {p1:.0%}, p₂ = 0%, p_nothing = {1-p1:.0%})")
+    st.subheader(f"B. Discount Rate vs Waktu Tunggu  (p₁ = {p1:.0%}, p₂ = {p2:.0%})")
     st.markdown("""
     <div class="card card-blue"><p style="margin:0">
     Seberapa sensitif keputusan terhadap pilihan discount rate?
@@ -841,7 +866,7 @@ with tab4:
     for r_i in r_vals:
         row = []
         for t_i in t_vals:
-            ri = calculate_values(ead, full_claim, recovery_now, p1, 0.0, float(t_i), r_i, collection_cost, cost_timing)
+            ri = calculate_values(ead, full_claim, recovery_now, p1, p2, float(t_i), r_i, collection_cost, cost_timing)
             d  = ri["diff"]
             mk = " ★" if abs(r_i - r) < r_tol and abs(float(t_i) - t) < (1.5 if time_unit == "Bulan" else 0.3) else ""
             if d > 0.1:    row.append(f"A (+{d:,.2f}){mk}")
@@ -853,51 +878,87 @@ with tab4:
     df_sb.index.name = "Discount rate"
     st.dataframe(df_sb, use_container_width=True)
 
-    # Breakeven chart
-    st.subheader("C. Breakeven Chart — p₁ Minimum vs Waktu Tunggu")
-    bep_arr  = np.array([
-        calculate_values(ead, full_claim, recovery_now, p1, p2, t_i, r, collection_cost, cost_timing)["breakeven_p1"]
+    # Breakeven chart — dengan range band (batas bawah dan atas)
+    st.subheader("C. Breakeven Chart — Range p₁ Minimum vs Waktu Tunggu")
+    st.markdown("""
+    <div class="card card-blue"><p style="margin:0">
+    <strong>Band abu-abu</strong> = range breakeven p₁ untuk semua kemungkinan p₂.<br>
+    Batas bawah: p₂ = 1−p₁ (tidak ada yang tidak bayar sama sekali — paling optimis).<br>
+    Batas atas: p₂ = 0% (semua yang tidak bayar penuh = tidak bayar sama sekali — paling konservatif).<br>
+    Kalau p₁ aktual <strong>di atas band</strong>: Opsi A layak di semua skenario.
+    Kalau <strong>di dalam band</strong>: tergantung asumsi p₂.
+    Kalau <strong>di bawah band</strong>: Opsi B lebih rasional di semua skenario.
+    </p></div>
+    """, unsafe_allow_html=True)
+
+    # Hitung dua kurva: batas atas (p2=0) dan batas bawah (p2=1-p1, analitik)
+    bep_upper_arr = np.array([
+        calculate_values(ead, full_claim, recovery_now, p1, 0.0, t_i, r, collection_cost, cost_timing)["breakeven_p1"]
         for t_i in t_grid_bep
     ])
-    bep_disp = np.clip(bep_arr * 100, 0, 150)
+    if full_claim > recovery_now:
+        df_grid = (1 + r) ** t_grid_bep
+        if cost_timing == "Akhir periode recovery":
+            bep_lower_arr = (recovery_now * (df_grid - 1) + collection_cost) / (full_claim - recovery_now)
+        else:
+            bep_lower_arr = (recovery_now * (df_grid - 1) + collection_cost * df_grid) / (full_claim - recovery_now)
+    else:
+        bep_lower_arr = bep_upper_arr.copy()
+    bep_lower_arr  = np.clip(bep_lower_arr,   0, 150)
+    bep_upper_disp = np.clip(bep_upper_arr * 100, 0, 150)
+    bep_lower_disp = np.clip(bep_lower_arr * 100, 0, 150)
 
     fig2, ax2 = plt.subplots(figsize=(10, 4.5))
     fig2.patch.set_facecolor('#fafafa')
     ax2.set_facecolor('#fafafa')
-    ax2.fill_between(t_grid_bep, bep_disp, 150, alpha=0.12, color='#4361ee')
-    ax2.fill_between(t_grid_bep, 0, bep_disp, alpha=0.10, color='#2ec4b6')
-    ax2.plot(t_grid_bep, bep_disp, color='#4361ee', linewidth=2.2, label='p₁ minimum (breakeven)')
-    ax2.axhline(p1 * 100, color='#e63946', linewidth=1.8, linestyle='--', label=f'p₁ aktual ({p1:.0%})')
-    ax2.axhline(100, color='#adb5bd', linewidth=1, linestyle=':', label='p₁ = 100%')
-    bep_at_t = min(
-        calculate_values(ead, full_claim, recovery_now, p1, p2, t, r, collection_cost, cost_timing)["breakeven_p1"] * 100,
-        150
-    )
-    ax2.scatter([t], [bep_at_t], s=90, color='#4361ee', zorder=6,
-                label=f'Parameter aktif (t={t:.0f} {satuan})')
-    idx1 = min(1, len(t_grid_bep)-1)
-    ax2.text(t_grid_bep[idx1]*0.05 + 0.05, min(bep_disp[idx1] + 6, 140),
-             'Opsi A lebih baik', color='#4361ee', fontsize=8.5, alpha=0.8)
-    ax2.text(t_grid_bep[idx1]*0.05 + 0.05, max(bep_disp[idx1] - 10, 3),
-             'Opsi B lebih baik', color='#2ec4b6', fontsize=8.5, alpha=0.8)
+
+    # Zona A aman (di atas band)
+    ax2.fill_between(t_grid_bep, bep_upper_disp, 130, alpha=0.10, color='#4361ee')
+    # Band range breakeven
+    ax2.fill_between(t_grid_bep, bep_lower_disp, bep_upper_disp,
+                     alpha=0.25, color='#adb5bd', label='Range breakeven (semua p₂)')
+    # Zona B aman (di bawah band)
+    ax2.fill_between(t_grid_bep, 0, bep_lower_disp, alpha=0.10, color='#2ec4b6')
+
+    ax2.plot(t_grid_bep, bep_upper_disp, color='#6b7280', linewidth=1.5,
+             linestyle='--', label='Batas atas (p₂ = 0%)')
+    ax2.plot(t_grid_bep, bep_lower_disp, color='#6b7280', linewidth=1.5,
+             linestyle=':', label='Batas bawah (p₂ = 1−p₁)')
+    ax2.axhline(p1 * 100, color='#e63946', linewidth=2.0,
+                label=f'p₁ aktual ({p1:.0%})')
+    ax2.axhline(100, color='#adb5bd', linewidth=1, linestyle=':', alpha=0.5)
+
+    idx_t = np.argmin(np.abs(t_grid_bep - t))
+    bep_at_t_upper = min(bep_upper_disp[idx_t], 150)
+    bep_at_t_lower = min(bep_lower_disp[idx_t], 150)
+    ax2.scatter([t], [(bep_at_t_upper + bep_at_t_lower) / 2], s=90, color='#6b7280',
+                zorder=6, label=f'Parameter aktif (t={t:.0f} {satuan})')
+
+    mid_t = t_lim_bep * 0.65
+    ax2.text(mid_t, min(bep_upper_disp[-1] + 7, 124),
+             'Opsi A aman (semua p₂)', color='#4361ee', fontsize=8.5, alpha=0.85)
+    ax2.text(mid_t, max(bep_lower_disp[-1] - 9, 3),
+             'Opsi B lebih baik (semua p₂)', color='#2ec4b6', fontsize=8.5, alpha=0.85)
+
+    unit_r_title = f"r_m = {r*100:.2f}%/bln" if time_unit == "Bulan" else f"r = {r:.0%}/thn"
     ax2.set_xlabel(xlabel_bep, fontsize=10)
     ax2.set_ylabel('p₁ minimum (%)', fontsize=10)
-    unit_r_title = f"r_m = {r*100:.2f}%/bln" if time_unit == "Bulan" else f"r = {r:.0%}/thn"
-    ax2.set_title(f'Breakeven p₁ vs Waktu Tunggu  (p₂ = {p2:.0%}, {unit_r_title})',
+    ax2.set_title(f'Range Breakeven p₁ vs Waktu Tunggu  ({unit_r_title})',
                   fontsize=11, fontweight='600')
     ax2.set_ylim(0, 130)
     ax2.set_xlim(0, t_lim_bep)
     ax2.grid(True, alpha=0.25, linestyle='--')
     ax2.spines[['top', 'right']].set_visible(False)
-    ax2.legend(fontsize=9, loc='upper left', framealpha=0.85)
+    ax2.legend(fontsize=8.5, loc='upper left', framealpha=0.88)
     plt.tight_layout()
     st.pyplot(fig2)
 
-    st.markdown(f"""
+    st.markdown("""
     <p class="note">
-    Garis breakeven bergerak naik seiring t karena semakin lama menunggu, semakin tinggi p₁
-    yang dibutuhkan untuk mengimbangi efek diskonto dan beban skenario p₂.
-    Gunakan breakeven p₁ sebagai anchor komunikasi ke komite kredit.
+    Band abu-abu adalah zona ketidakpastian — lebar band mencerminkan seberapa besar p₂
+    mempengaruhi keputusan. Band sempit berarti keputusan robust terhadap asumsi p₂.
+    Band lebar berarti keyakinan tentang p₂ sangat menentukan.
+    Posisi garis merah (p₁ aktual) relatif terhadap band adalah anchor utama ke komite kredit.
     </p>
     """, unsafe_allow_html=True)
 
