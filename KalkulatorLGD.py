@@ -793,7 +793,7 @@ with tab4:
         r_label    = f"r = {r:.0%}/thn"
 
     # Tabel A: p1 vs t
-    st.subheader(f"A. p₁ vs Waktu Tunggu  (p₂ = {p2:.0%} tetap, {r_label})")
+    st.subheader(f"A. p₁ vs Waktu Tunggu  (p₂ = 1−p₁ per baris, p_nothing = 0%, {r_label})")
     st.markdown("""
     <div class="card card-blue"><p style="margin:0">
     Angka dalam kurung = selisih PV (A − B). Positif = A lebih baik. <strong>★ = parameter aktif.</strong>
@@ -805,7 +805,9 @@ with tab4:
     for p1_i in p1_vals:
         row = []
         for t_i in t_vals:
-            ri = calculate_values(ead, full_claim, recovery_now, p1_i, p2, float(t_i), r, collection_cost, cost_timing)
+            # GANTI JADI:
+            p2_a = round(1.0 - p1_i, 10)   # p2 = 1-p1, p_nothing = 0
+            ri = calculate_values(ead, full_claim, recovery_now, p1_i, p2_a, float(t_i), r, collection_cost, cost_timing)
             d  = ri["diff"]
             mk = " ★" if abs(p1_i - p1) < 0.06 and abs(float(t_i) - t) < (1.5 if time_unit == "Bulan" else 0.3) else ""
             if d > 0.1:    row.append(f"A (+{d:,.2f}){mk}")
@@ -827,7 +829,7 @@ with tab4:
         r_idx      = [f"r = {x:.0%}/thn" for x in r_vals]
         r_tol      = 0.015
 
-    st.subheader(f"B. Discount Rate vs Waktu Tunggu  (p₁ = {p1:.0%}, p₂ = {p2:.0%})")
+    st.subheader(f"B. Discount Rate vs Waktu Tunggu  (p₁ = {p1:.0%}, p₂ = 0%, p_nothing = {1-p1:.0%})")
     st.markdown("""
     <div class="card card-blue"><p style="margin:0">
     Seberapa sensitif keputusan terhadap pilihan discount rate?
@@ -839,7 +841,7 @@ with tab4:
     for r_i in r_vals:
         row = []
         for t_i in t_vals:
-            ri = calculate_values(ead, full_claim, recovery_now, p1, p2, float(t_i), r_i, collection_cost, cost_timing)
+            ri = calculate_values(ead, full_claim, recovery_now, p1, 0.0, float(t_i), r_i, collection_cost, cost_timing)
             d  = ri["diff"]
             mk = " ★" if abs(r_i - r) < r_tol and abs(float(t_i) - t) < (1.5 if time_unit == "Bulan" else 0.3) else ""
             if d > 0.1:    row.append(f"A (+{d:,.2f}){mk}")
